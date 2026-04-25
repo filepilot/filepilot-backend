@@ -2,11 +2,9 @@ package com.filepilot.vcs.service;
 
 import com.filepilot.vcs.dto.response.CommentResponse;
 import com.filepilot.vcs.exception.AccessDeniedException;
-import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.mapper.DocumentMapper;
 import com.filepilot.vcs.model.*;
 import com.filepilot.vcs.repository.CommentRepository;
-import com.filepilot.vcs.repository.DocumentVersionRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,13 +17,12 @@ import java.util.stream.Collectors;
 public class CommentService {
 
     private final CommentRepository commentRepository;
-    private final DocumentVersionRepository versionRepository;
+    private final VersionService versionService;
     private final DocumentMapper mapper;
     private final AuditService auditService;
 
-    public List<CommentResponse> getCommentsByVersion(Long versionId) {
-        DocumentVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId));
+    public List<CommentResponse> getCommentsByVersion(Long versionId, User user) {
+        DocumentVersion version = versionService.findVersionForRead(versionId, user);
 
         return commentRepository.findByVersionOrderByCreatedAtDesc(version).stream()
                 .map(mapper::toCommentResponse)
@@ -38,8 +35,7 @@ public class CommentService {
             throw new AccessDeniedException("Only reviewers and admins can add comments");
         }
 
-        DocumentVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId));
+        DocumentVersion version = versionService.findVersionForRead(versionId, author);
 
         Comment comment = new Comment();
         comment.setVersion(version);

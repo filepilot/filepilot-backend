@@ -1,8 +1,7 @@
 package com.filepilot.vcs.service;
 
-import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.model.DocumentVersion;
-import com.filepilot.vcs.repository.DocumentVersionRepository;
+import com.filepilot.vcs.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -12,11 +11,10 @@ import java.nio.charset.StandardCharsets;
 @RequiredArgsConstructor
 public class ExportService {
 
-    private final DocumentVersionRepository versionRepository;
+    private final VersionService versionService;
 
-    public byte[] exportAsTxt(Long versionId) {
-        DocumentVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId));
+    public byte[] exportAsTxt(Long versionId, User user) {
+        DocumentVersion version = versionService.findVersionForRead(versionId, user);
 
         String header = "Document: " + version.getDocument().getTitle() + "\n"
                 + "Version: " + version.getVersionNumber() + "\n"
@@ -30,9 +28,8 @@ public class ExportService {
         return fullContent.getBytes(StandardCharsets.UTF_8);
     }
 
-    public byte[] exportAsPdf(Long versionId) {
-        DocumentVersion version = versionRepository.findById(versionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId));
+    public byte[] exportAsPdf(Long versionId, User user) {
+        DocumentVersion version = versionService.findVersionForRead(versionId, user);
 
         String content = "Document: " + version.getDocument().getTitle() + "\n"
                 + "Version: " + version.getVersionNumber() + "\n"

@@ -2,9 +2,8 @@ package com.filepilot.vcs.service;
 
 import com.filepilot.vcs.dto.response.DiffResponse;
 import com.filepilot.vcs.exception.InvalidOperationException;
-import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.model.DocumentVersion;
-import com.filepilot.vcs.repository.DocumentVersionRepository;
+import com.filepilot.vcs.model.User;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -14,14 +13,11 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DiffService {
 
-    private final DocumentVersionRepository versionRepository;
+    private final VersionService versionService;
 
-    public DiffResponse compareVersions(Long versionId1, Long versionId2) {
-        DocumentVersion v1 = versionRepository.findById(versionId1)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId1));
-
-        DocumentVersion v2 = versionRepository.findById(versionId2)
-                .orElseThrow(() -> new ResourceNotFoundException("Version not found with id: " + versionId2));
+    public DiffResponse compareVersions(Long versionId1, Long versionId2, User user) {
+        DocumentVersion v1 = versionService.findVersionForRead(versionId1, user);
+        DocumentVersion v2 = versionService.findVersionForRead(versionId2, user);
 
         if (!v1.getDocument().getId().equals(v2.getDocument().getId())) {
             throw new InvalidOperationException("Cannot compare versions from different documents");

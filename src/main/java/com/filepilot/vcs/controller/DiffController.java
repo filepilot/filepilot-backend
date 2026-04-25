@@ -1,6 +1,8 @@
 package com.filepilot.vcs.controller;
 
 import com.filepilot.vcs.dto.response.DiffResponse;
+import com.filepilot.vcs.model.User;
+import com.filepilot.vcs.security.SecurityUtil;
 import com.filepilot.vcs.service.DiffService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -12,11 +14,13 @@ import org.springframework.web.bind.annotation.*;
 public class DiffController {
 
     private final DiffService diffService;
+    private final SecurityUtil securityUtil;
 
     @GetMapping("/{id1}/diff/{id2}")
     public ResponseEntity<DiffResponse> compareVersions(
             @PathVariable Long id1,
             @PathVariable Long id2) {
-        return ResponseEntity.ok(diffService.compareVersions(id1, id2));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(diffService.compareVersions(id1, id2, user));
     }
 }

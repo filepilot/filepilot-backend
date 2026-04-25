@@ -31,6 +31,11 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     @Value("${rate.limit.auth.requests:10}")
     private int authMaxRequests;
 
+    // Only honor X-Forwarded-For / X-Real-IP when behind a trusted proxy (nginx, ALB, Cloudflare).
+    // Default false — otherwise any client can spoof a fresh IP per request and bypass the limiter.
+    @Value("${app.trusted-proxy:false}")
+    private boolean trustProxyHeaders;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -61,14 +66,16 @@ public class RateLimitingFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String xForwardedFor = request.getHeader("X-Forwarded-For");
-        if (xForwardedFor != null && !xForwardedFor.isBlank()) {
-            // Take the first IP (original client), trim whitespace
-            return xForwardedFor.split(",")[0].trim();
-        }
-        String xRealIp = request.getHeader("X-Real-IP");
-        if (xRealIp != null && !xRealIp.isBlank()) {
-            return xRealIp.trim();
+        if (trustProxyHeaders) {
+            String xForwardedFor = request.getHeader("X-Forwarded-For");
+            if (xForwardedFor != null && !xForwardedFor.isBlank()) {
+                // Take the first IP (original client), trim whitespace
+                return xForwardedFor.split(",")[0].trim();
+            }
+            String xRealIp = request.getHeader("X-Real-IP");
+            if (xRealIp != null && !xRealIp.isBlank()) {
+                return xRealIp.trim();
+            }
         }
         return request.getRemoteAddr();
     }

@@ -2,6 +2,7 @@ package com.filepilot.vcs.service;
 
 import com.filepilot.vcs.dto.response.UserResponse;
 import com.filepilot.vcs.exception.AccessDeniedException;
+import com.filepilot.vcs.exception.InvalidOperationException;
 import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.mapper.DocumentMapper;
 import com.filepilot.vcs.model.Document;
@@ -56,6 +57,17 @@ public class UserService {
 
         User user = findById(userId);
         Role oldRole = user.getRole();
+
+        // Prevent admin self-demotion: leaves a working admin in place even via direct API calls.
+        if (user.getId().equals(admin.getId()) && newRole != Role.ADMIN) {
+            throw new InvalidOperationException("Admins cannot change their own role");
+        }
+        // Refuse to remove the last remaining ADMIN; otherwise the system becomes un-administered.
+        if (oldRole == Role.ADMIN && newRole != Role.ADMIN
+                && userRepository.countByRole(Role.ADMIN) <= 1) {
+            throw new InvalidOperationException("Cannot demote the last remaining admin");
+        }
+
         user.setRole(newRole);
         userRepository.save(user);
 
@@ -74,8 +86,16 @@ public class UserService {
         User user = findById(userId);
         String username = user.getUsername();
 
-        // Delete audit logs referencing this user
-        auditLogRepository.deleteByUser(user);
+        // Same self-protection as updateRole; mirrors the frontend guard so direct API calls cannot lock the system out.
+        if (user.getId().equals(admin.getId())) {
+            throw new InvalidOperationException("Admins cannot delete themselves");
+        }
+        if (user.getRole() == Role.ADMIN && userRepository.countByRole(Role.ADMIN) <= 1) {
+            throw new InvalidOperationException("Cannot delete the last remaining admin");
+        }
+
+        // Preserve audit history (compliance/forensics): null the FK instead of deleting rows.
+        auditLogRepository.clearUserReference(user);
 
         // Delete comments authored by this user
         commentRepository.deleteByAuthor(user);
@@ -83,11 +103,15 @@ public class UserService {
         // Clear reviewer references (nullable FK) on document versions
         documentVersionRepository.clearReviewerByUser(user);
 
-        // Delete documents owned by this user (cascades to versions and their comments)
+        // Delete documents owned by this user. JPA cascades versions, but comments have no
+        // DB-level cascade from version_id — wipe them per-version before deleting.
         List<Document> ownedDocuments = documentRepository.findByOwner(user);
         for (Document doc : ownedDocuments) {
             doc.setActiveVersion(null);
             documentRepository.save(doc);
+            for (DocumentVersion v : documentVersionRepository.findByDocumentOrderByVersionNumberDesc(doc)) {
+                commentRepository.deleteByVersion(v);
+            }
         }
         documentRepository.deleteAll(ownedDocuments);
 

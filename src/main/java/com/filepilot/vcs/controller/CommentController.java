@@ -23,7 +23,8 @@ public class CommentController {
 
     @GetMapping("/{versionId}/comments")
     public ResponseEntity<List<CommentResponse>> getComments(@PathVariable Long versionId) {
-        return ResponseEntity.ok(commentService.getCommentsByVersion(versionId));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(commentService.getCommentsByVersion(versionId, user));
     }
 
     @PostMapping("/{versionId}/comments")

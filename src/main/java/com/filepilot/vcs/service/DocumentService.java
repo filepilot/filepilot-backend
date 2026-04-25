@@ -6,6 +6,7 @@ import com.filepilot.vcs.exception.AccessDeniedException;
 import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.mapper.DocumentMapper;
 import com.filepilot.vcs.model.*;
+import com.filepilot.vcs.repository.CommentRepository;
 import com.filepilot.vcs.repository.DocumentRepository;
 import com.filepilot.vcs.repository.DocumentVersionRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final DocumentVersionRepository versionRepository;
+    private final CommentRepository commentRepository;
     private final DocumentMapper mapper;
     private final AuditService auditService;
 
@@ -101,6 +103,12 @@ public class DocumentService {
 
         document.setActiveVersion(null);
         documentRepository.save(document);
+
+        // Comments have no DB-level cascade from version_id; delete them before the version cascade fires.
+        for (DocumentVersion version : versionRepository.findByDocumentOrderByVersionNumberDesc(document)) {
+            commentRepository.deleteByVersion(version);
+        }
+
         documentRepository.delete(document);
 
         auditService.log(user, "DOCUMENT_DELETED", "DOCUMENT", id,

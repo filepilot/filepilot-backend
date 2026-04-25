@@ -28,28 +28,33 @@ public class VersionController {
 
     @GetMapping("/documents/{documentId}/versions")
     public ResponseEntity<List<VersionResponse>> getVersions(@PathVariable Long documentId) {
-        return ResponseEntity.ok(versionService.getVersionsByDocument(documentId));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(versionService.getVersionsByDocument(documentId, user));
     }
 
     @GetMapping("/documents/by-slug/{slug}/versions")
     public ResponseEntity<List<VersionResponse>> getVersionsBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(versionService.getVersionsByDocumentSlug(slug));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(versionService.getVersionsByDocumentSlug(slug, user));
     }
 
     @GetMapping("/documents/by-slug/{slug}/versions/{versionNumber}")
     public ResponseEntity<VersionResponse> getVersionBySlugAndNumber(
             @PathVariable String slug, @PathVariable Integer versionNumber) {
-        return ResponseEntity.ok(versionService.getVersionBySlugAndNumber(slug, versionNumber));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(versionService.getVersionBySlugAndNumber(slug, versionNumber, user));
     }
 
     @GetMapping("/versions/pending-review")
     public ResponseEntity<List<VersionResponse>> getPendingReviewVersions() {
-        return ResponseEntity.ok(versionService.getPendingVersions());
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(versionService.getPendingVersions(user));
     }
 
     @GetMapping("/versions/{id}")
     public ResponseEntity<VersionResponse> getVersion(@PathVariable Long id) {
-        return ResponseEntity.ok(versionService.getVersionById(id));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(versionService.getVersionById(id, user));
     }
 
     @PostMapping("/documents/{documentId}/versions")

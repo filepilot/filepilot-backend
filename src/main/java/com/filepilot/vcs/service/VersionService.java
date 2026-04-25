@@ -28,25 +28,47 @@ public class VersionService {
     private final DocumentMapper mapper;
     private final AuditService auditService;
 
-    public List<VersionResponse> getVersionsByDocument(Long documentId) {
+    /**
+     * Read-scope rule used by everything that exposes version content (lists, single-version,
+     * export, diff, comments). APPROVED is public to authenticated users; everything else is
+     * limited to staff (REVIEWER/ADMIN), the version's author, or the document's owner.
+     */
+    public boolean canReadVersion(DocumentVersion version, User user) {
+        if (user.getRole() == Role.ADMIN || user.getRole() == Role.REVIEWER) return true;
+        if (version.getStatus() == VersionStatus.APPROVED) return true;
+        if (version.getAuthor() != null && version.getAuthor().getId().equals(user.getId())) return true;
+        if (version.getDocument() != null && version.getDocument().getOwner() != null
+                && version.getDocument().getOwner().getId().equals(user.getId())) return true;
+        return false;
+    }
+
+    private void requireReadAccess(DocumentVersion version, User user) {
+        if (!canReadVersion(version, user)) {
+            throw new AccessDeniedException("You don't have access to this version");
+        }
+    }
+
+    public List<VersionResponse> getVersionsByDocument(Long documentId, User user) {
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + documentId));
 
         return versionRepository.findByDocumentOrderByVersionNumberDesc(document).stream()
+                .filter(v -> canReadVersion(v, user))
                 .map(mapper::toVersionResponse)
                 .collect(Collectors.toList());
     }
 
-    public List<VersionResponse> getVersionsByDocumentSlug(String slug) {
+    public List<VersionResponse> getVersionsByDocumentSlug(String slug, User user) {
         Document document = documentRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + slug));
 
         return versionRepository.findByDocumentOrderByVersionNumberDesc(document).stream()
+                .filter(v -> canReadVersion(v, user))
                 .map(mapper::toVersionResponse)
                 .collect(Collectors.toList());
     }
 
-    public VersionResponse getVersionBySlugAndNumber(String slug, Integer versionNumber) {
+    public VersionResponse getVersionBySlugAndNumber(String slug, Integer versionNumber, User user) {
         Document document = documentRepository.findBySlug(slug)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found: " + slug));
 
@@ -54,18 +76,29 @@ public class VersionService {
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "Version " + versionNumber + " not found for document: " + slug));
 
+        requireReadAccess(version, user);
         return mapper.toVersionResponse(version);
     }
 
-    public List<VersionResponse> getPendingVersions() {
+    public List<VersionResponse> getPendingVersions(User user) {
+        if (user.getRole() != Role.REVIEWER && user.getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Only reviewers and admins can view the review queue");
+        }
         return versionRepository.findByStatus(VersionStatus.PENDING_REVIEW).stream()
                 .map(mapper::toVersionResponse)
                 .collect(Collectors.toList());
     }
 
-    public VersionResponse getVersionById(Long id) {
+    public VersionResponse getVersionById(Long id, User user) {
         DocumentVersion version = findVersionOrThrow(id);
+        requireReadAccess(version, user);
         return mapper.toVersionResponse(version);
+    }
+
+    public DocumentVersion findVersionForRead(Long id, User user) {
+        DocumentVersion version = findVersionOrThrow(id);
+        requireReadAccess(version, user);
+        return version;
     }
 
     @Transactional
@@ -76,6 +109,12 @@ public class VersionService {
 
         Document document = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResourceNotFoundException("Document not found with id: " + documentId));
+
+        // Authors may only add versions to documents they own. Admins bypass this for moderation.
+        if (author.getRole() != Role.ADMIN
+                && !document.getOwner().getId().equals(author.getId())) {
+            throw new AccessDeniedException("Only the document owner can add versions to this document");
+        }
 
         DocumentVersion latestVersion = versionRepository
                 .findTopByDocumentForUpdate(document)
@@ -132,6 +171,10 @@ public class VersionService {
             throw new InvalidOperationException("Only PENDING_REVIEW versions can be approved");
         }
 
+        if (version.getAuthor().getId().equals(reviewer.getId())) {
+            throw new AccessDeniedException("Cannot approve your own version");
+        }
+
         version.setStatus(VersionStatus.APPROVED);
         version.setReviewer(reviewer);
         if (request != null && request.getComment() != null) {
@@ -157,8 +200,22 @@ public class VersionService {
 
         DocumentVersion version = findVersionOrThrow(versionId);
 
-        if (version.getStatus() != VersionStatus.PENDING_REVIEW) {
+        boolean isAdmin = reviewer.getRole() == Role.ADMIN;
+        if (version.getStatus() == VersionStatus.REJECTED) {
+            throw new InvalidOperationException("Version is already rejected");
+        }
+        if (!isAdmin && version.getStatus() != VersionStatus.PENDING_REVIEW) {
             throw new InvalidOperationException("Only PENDING_REVIEW versions can be rejected");
+        }
+
+        // Admin revoking an approved version: detach it from the document if it's the active one.
+        if (version.getStatus() == VersionStatus.APPROVED) {
+            Document document = version.getDocument();
+            if (document.getActiveVersion() != null
+                    && document.getActiveVersion().getId().equals(version.getId())) {
+                document.setActiveVersion(null);
+                documentRepository.save(document);
+            }
         }
 
         version.setStatus(VersionStatus.REJECTED);

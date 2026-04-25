@@ -1,6 +1,8 @@
 package com.filepilot.vcs.controller;
 
 import com.filepilot.vcs.exception.InvalidOperationException;
+import com.filepilot.vcs.model.User;
+import com.filepilot.vcs.security.SecurityUtil;
 import com.filepilot.vcs.service.ExportService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +20,7 @@ public class ExportController {
     private static final Set<String> ALLOWED_FORMATS = Set.of("txt", "pdf");
 
     private final ExportService exportService;
+    private final SecurityUtil securityUtil;
 
     @GetMapping("/{id}/export")
     public ResponseEntity<byte[]> exportVersion(
@@ -28,15 +31,17 @@ public class ExportController {
             throw new InvalidOperationException("Unsupported export format. Allowed: txt, pdf");
         }
 
+        User user = securityUtil.getCurrentUser();
+
         if ("pdf".equalsIgnoreCase(format)) {
-            byte[] pdf = exportService.exportAsPdf(id);
+            byte[] pdf = exportService.exportAsPdf(id, user);
             return ResponseEntity.ok()
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=version_" + id + ".pdf")
                     .contentType(MediaType.APPLICATION_PDF)
                     .body(pdf);
         }
 
-        byte[] txt = exportService.exportAsTxt(id);
+        byte[] txt = exportService.exportAsTxt(id, user);
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=version_" + id + ".txt")
                 .contentType(MediaType.TEXT_PLAIN)
