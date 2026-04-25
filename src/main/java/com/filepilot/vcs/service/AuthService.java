@@ -19,6 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class AuthService {
 
+    // A precomputed bcrypt hash of a random string. Used to spend the same CPU
+    // when login is attempted against a missing username, so response timing
+    // doesn't reveal whether an account exists.
+    private static final String DUMMY_BCRYPT_HASH =
+            "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy";
+
     private final UserRepository userRepository;
     private final DocumentMapper mapper;
     private final AuditService auditService;
@@ -27,12 +33,10 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByUsername(request.getUsername())) {
-            throw new InvalidOperationException("Username already taken");
-        }
-
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new InvalidOperationException("Email already registered");
+        // Generic message to avoid revealing which of (username, email) is taken.
+        if (userRepository.existsByUsername(request.getUsername())
+                || userRepository.existsByEmail(request.getEmail())) {
+            throw new InvalidOperationException("Registration failed. Please choose different credentials.");
         }
 
         User user = new User();
@@ -75,13 +79,16 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElse(null);
 
-        if (user == null) {
-            throw new InvalidOperationException("Invalid username or password");
-        }
+        // Always run bcrypt — even when the user doesn't exist — so missing-account
+        // responses take the same time as wrong-password responses.
+        String hashToCheck = (user != null) ? user.getPasswordHash() : DUMMY_BCRYPT_HASH;
+        boolean passwordMatches = passwordEncoder.matches(request.getPassword(), hashToCheck);
 
-        if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
-            auditService.log(user, "LOGIN_FAILED", "USER", user.getId(),
-                    "Failed login attempt for user: " + user.getUsername());
+        if (user == null || !passwordMatches) {
+            if (user != null) {
+                auditService.log(user, "LOGIN_FAILED", "USER", user.getId(),
+                        "Failed login attempt for user: " + user.getUsername());
+            }
             throw new InvalidOperationException("Invalid username or password");
         }
 

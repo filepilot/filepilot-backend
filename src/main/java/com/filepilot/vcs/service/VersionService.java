@@ -179,7 +179,8 @@ public class VersionService {
             throw new InvalidOperationException("Only PENDING_REVIEW versions can be approved");
         }
 
-        if (version.getAuthor().getId().equals(reviewer.getId())) {
+        if (version.getAuthor().getId().equals(reviewer.getId())
+                && reviewer.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("Cannot approve your own version");
         }
 
@@ -208,7 +209,8 @@ public class VersionService {
 
         DocumentVersion version = findVersionOrThrow(versionId);
 
-        if (version.getAuthor().getId().equals(reviewer.getId())) {
+        if (version.getAuthor().getId().equals(reviewer.getId())
+                && reviewer.getRole() != Role.ADMIN) {
             throw new AccessDeniedException("Cannot reject your own version");
         }
 
