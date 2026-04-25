@@ -29,6 +29,15 @@ public class DocumentMapper {
     }
 
     public DocumentResponse toDocumentResponse(Document document) {
+        int total = document.getVersions() != null ? document.getVersions().size() : 0;
+        return toDocumentResponse(document, total);
+    }
+
+    /**
+     * Caller-supplied visibleVersionCount avoids leaking hidden DRAFT/PENDING activity
+     * to users who can't actually read those versions. See VersionService.canReadVersion.
+     */
+    public DocumentResponse toDocumentResponse(Document document, int visibleVersionCount) {
         DocumentResponse response = new DocumentResponse();
         response.setId(document.getId());
         response.setTitle(document.getTitle());
@@ -43,7 +52,7 @@ public class DocumentMapper {
             response.setActiveVersionNumber(document.getActiveVersion().getVersionNumber());
         }
 
-        response.setTotalVersions(document.getVersions() != null ? document.getVersions().size() : 0);
+        response.setTotalVersions(visibleVersionCount);
 
         return response;
     }

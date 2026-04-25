@@ -13,6 +13,9 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DiffService {
 
+    // LCS is O(m*n) memory and CPU. Cap each side so a 100k-line paste can't OOM the server.
+    static final int MAX_DIFF_LINES = 5000;
+
     private final VersionService versionService;
 
     public DiffResponse compareVersions(Long versionId1, Long versionId2, User user) {
@@ -27,6 +30,11 @@ public class DiffService {
         String content2 = v2.getContent() != null ? v2.getContent() : "";
         String[] lines1 = content1.split("\n", -1);
         String[] lines2 = content2.split("\n", -1);
+
+        if (lines1.length > MAX_DIFF_LINES || lines2.length > MAX_DIFF_LINES) {
+            throw new InvalidOperationException(
+                    "Versions too large to diff (limit " + MAX_DIFF_LINES + " lines per side)");
+        }
 
         List<DiffResponse.DiffLine> diffLines = computeLcsDiff(lines1, lines2);
 

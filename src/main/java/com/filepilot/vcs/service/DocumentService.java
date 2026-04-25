@@ -25,16 +25,25 @@ public class DocumentService {
     private final CommentRepository commentRepository;
     private final DocumentMapper mapper;
     private final AuditService auditService;
+    private final VersionService versionService;
 
-    public List<DocumentResponse> getAllDocuments() {
+    public List<DocumentResponse> getAllDocuments(User user) {
         return documentRepository.findAll().stream()
-                .map(mapper::toDocumentResponse)
+                .map(d -> toResponseFor(d, user))
                 .collect(Collectors.toList());
     }
 
-    public DocumentResponse getDocumentById(Long id) {
+    public DocumentResponse getDocumentById(Long id, User user) {
         Document document = findDocumentOrThrow(id);
-        return mapper.toDocumentResponse(document);
+        return toResponseFor(document, user);
+    }
+
+    private DocumentResponse toResponseFor(Document document, User user) {
+        int visible = document.getVersions() == null ? 0
+                : (int) document.getVersions().stream()
+                        .filter(v -> versionService.canReadVersion(v, user))
+                        .count();
+        return mapper.toDocumentResponse(document, visible);
     }
 
     @Transactional
@@ -70,7 +79,7 @@ public class DocumentService {
         auditService.log(author, "DOCUMENT_CREATED", "DOCUMENT", saved.getId(),
                 "Created document: " + saved.getTitle());
 
-        return mapper.toDocumentResponse(saved);
+        return mapper.toDocumentResponse(saved, 1);
     }
 
     @Transactional
@@ -90,7 +99,7 @@ public class DocumentService {
         auditService.log(user, "DOCUMENT_UPDATED", "DOCUMENT", id,
                 "Updated document: " + title);
 
-        return mapper.toDocumentResponse(document);
+        return toResponseFor(document, user);
     }
 
     @Transactional
@@ -115,9 +124,9 @@ public class DocumentService {
                 "Deleted document: " + document.getTitle());
     }
 
-    public DocumentResponse getDocumentBySlug(String slug) {
+    public DocumentResponse getDocumentBySlug(String slug, User user) {
         Document document = findDocumentBySlugOrThrow(slug);
-        return mapper.toDocumentResponse(document);
+        return toResponseFor(document, user);
     }
 
     public Document findDocumentOrThrow(Long id) {

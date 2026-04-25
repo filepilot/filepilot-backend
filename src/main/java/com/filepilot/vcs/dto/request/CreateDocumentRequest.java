@@ -11,8 +11,10 @@ public class CreateDocumentRequest {
     @Size(max = 255, message = "Title must be less than 255 characters")
     private String title;
 
+    @Size(max = 2000, message = "Description must be less than 2000 characters")
     private String description;
 
     @NotBlank(message = "Content is required")
+    @Size(max = 1_048_576, message = "Content must be less than 1 MB")
     private String content;
 }

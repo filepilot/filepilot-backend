@@ -30,16 +30,24 @@ public class VersionService {
 
     /**
      * Read-scope rule used by everything that exposes version content (lists, single-version,
-     * export, diff, comments). APPROVED is public to authenticated users; everything else is
-     * limited to staff (REVIEWER/ADMIN), the version's author, or the document's owner.
+     * export, diff, comments).
+     *  - ADMIN sees everything.
+     *  - REVIEWER sees everything except other authors' DRAFTs.
+     *  - APPROVED is visible to any authenticated user.
+     *  - The author and document owner always see their own content.
      */
     public boolean canReadVersion(DocumentVersion version, User user) {
-        if (user.getRole() == Role.ADMIN || user.getRole() == Role.REVIEWER) return true;
-        if (version.getStatus() == VersionStatus.APPROVED) return true;
-        if (version.getAuthor() != null && version.getAuthor().getId().equals(user.getId())) return true;
-        if (version.getDocument() != null && version.getDocument().getOwner() != null
-                && version.getDocument().getOwner().getId().equals(user.getId())) return true;
-        return false;
+        if (user.getRole() == Role.ADMIN) return true;
+        boolean isAuthor = version.getAuthor() != null
+                && version.getAuthor().getId().equals(user.getId());
+        boolean isOwner = version.getDocument() != null
+                && version.getDocument().getOwner() != null
+                && version.getDocument().getOwner().getId().equals(user.getId());
+        if (isAuthor || isOwner) return true;
+        if (user.getRole() == Role.REVIEWER) {
+            return version.getStatus() != VersionStatus.DRAFT;
+        }
+        return version.getStatus() == VersionStatus.APPROVED;
     }
 
     private void requireReadAccess(DocumentVersion version, User user) {
@@ -199,6 +207,10 @@ public class VersionService {
         }
 
         DocumentVersion version = findVersionOrThrow(versionId);
+
+        if (version.getAuthor().getId().equals(reviewer.getId())) {
+            throw new AccessDeniedException("Cannot reject your own version");
+        }
 
         boolean isAdmin = reviewer.getRole() == Role.ADMIN;
         if (version.getStatus() == VersionStatus.REJECTED) {

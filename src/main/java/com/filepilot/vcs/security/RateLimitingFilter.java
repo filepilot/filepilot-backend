@@ -8,11 +8,14 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.Deque;
+import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 
@@ -63,6 +66,25 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
         timestamps.addLast(now);
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Periodically drop per-IP entries whose timestamps have all expired. Without this,
+     * the map grows unbounded as one-shot IPs accumulate (worse when X-Forwarded-For
+     * spoofing is allowed by a misconfigured proxy).
+     */
+    @Scheduled(fixedDelayString = "${rate.limit.cleanup.interval:300000}")
+    public void evictStaleEntries() {
+        long cutoff = System.currentTimeMillis() - windowMs;
+        Iterator<Map.Entry<String, Deque<Long>>> it = requestCounts.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<String, Deque<Long>> entry = it.next();
+            Deque<Long> deque = entry.getValue();
+            Long last = deque.peekLast();
+            if (last == null || last < cutoff) {
+                requestCounts.remove(entry.getKey(), deque);
+            }
+        }
     }
 
     private String resolveClientIp(HttpServletRequest request) {

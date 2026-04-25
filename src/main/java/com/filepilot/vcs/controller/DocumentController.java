@@ -23,17 +23,20 @@ public class DocumentController {
 
     @GetMapping
     public ResponseEntity<List<DocumentResponse>> getAllDocuments() {
-        return ResponseEntity.ok(documentService.getAllDocuments());
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(documentService.getAllDocuments(user));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DocumentResponse> getDocument(@PathVariable Long id) {
-        return ResponseEntity.ok(documentService.getDocumentById(id));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(documentService.getDocumentById(id, user));
     }
 
     @GetMapping("/by-slug/{slug}")
     public ResponseEntity<DocumentResponse> getDocumentBySlug(@PathVariable String slug) {
-        return ResponseEntity.ok(documentService.getDocumentBySlug(slug));
+        User user = securityUtil.getCurrentUser();
+        return ResponseEntity.ok(documentService.getDocumentBySlug(slug, user));
     }
 
     @PostMapping
