@@ -83,6 +83,13 @@ public class VersionController {
         return ResponseEntity.ok(versionService.rejectVersion(id, request, user));
     }
 
+    @DeleteMapping("/versions/{id}")
+    public ResponseEntity<Void> deleteVersion(@PathVariable Long id) {
+        User user = securityUtil.getCurrentUser();
+        versionService.deleteVersion(id, user);
+        return ResponseEntity.noContent().build();
+    }
+
     @PostMapping(value = "/documents/{documentId}/versions/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<VersionResponse> uploadVersion(
             @PathVariable Long documentId,

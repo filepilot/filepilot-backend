@@ -8,6 +8,7 @@ import com.filepilot.vcs.exception.InvalidOperationException;
 import com.filepilot.vcs.exception.ResourceNotFoundException;
 import com.filepilot.vcs.mapper.DocumentMapper;
 import com.filepilot.vcs.model.*;
+import com.filepilot.vcs.repository.CommentRepository;
 import com.filepilot.vcs.repository.DocumentRepository;
 import com.filepilot.vcs.repository.DocumentVersionRepository;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,7 @@ public class VersionService {
 
     private final DocumentVersionRepository versionRepository;
     private final DocumentRepository documentRepository;
+    private final CommentRepository commentRepository;
     private final DocumentMapper mapper;
     private final AuditService auditService;
 
@@ -170,6 +172,28 @@ public class VersionService {
                 "Rejected version " + version.getVersionNumber() + " for document: " + version.getDocument().getTitle());
 
         return mapper.toVersionResponse(version);
+    }
+
+    @Transactional
+    public void deleteVersion(Long versionId, User user) {
+        if (user.getRole() != Role.ADMIN) {
+            throw new AccessDeniedException("Only admins can delete versions");
+        }
+
+        DocumentVersion version = findVersionOrThrow(versionId);
+        Document document = version.getDocument();
+
+        if (document.getActiveVersion() != null
+                && document.getActiveVersion().getId().equals(version.getId())) {
+            document.setActiveVersion(null);
+            documentRepository.save(document);
+        }
+
+        commentRepository.deleteByVersion(version);
+        versionRepository.delete(version);
+
+        auditService.log(user, "VERSION_DELETED", "VERSION", versionId,
+                "Deleted version " + version.getVersionNumber() + " of document: " + document.getTitle());
     }
 
     private DocumentVersion findVersionOrThrow(Long id) {
