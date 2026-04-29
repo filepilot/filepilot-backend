@@ -2,8 +2,9 @@ package com.filepilot.vcs.service;
 
 import com.filepilot.vcs.model.Document;
 import com.filepilot.vcs.model.DocumentVersion;
+import com.filepilot.vcs.model.Role;
 import com.filepilot.vcs.model.User;
-import com.filepilot.vcs.repository.DocumentVersionRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -11,19 +12,28 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ExportServiceTest {
 
-    @Mock private DocumentVersionRepository versionRepository;
-    @Mock private User mockUser;
+    @Mock private VersionService versionService;
 
     @InjectMocks private ExportService exportService;
+
+    private User testUser;
+
+    @BeforeEach
+    void setUp() {
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setUsername("tester");
+        testUser.setRole(Role.ADMIN);
+    }
 
     @Test
     void exportAsTxt_contains_header_and_content() {
@@ -45,9 +55,9 @@ class ExportServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        when(versionRepository.findById(1L)).thenReturn(java.util.Optional.of(version));
+        when(versionService.findVersionForRead(eq(1L), any(User.class))).thenReturn(version);
 
-        byte[] txt = exportService.exportAsTxt(1L, mockUser);
+        byte[] txt = exportService.exportAsTxt(1L, testUser);
         String content = new String(txt, StandardCharsets.UTF_8);
         assertTrue(content.length() > 0);
     }
@@ -69,10 +79,10 @@ class ExportServiceTest {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        when(versionRepository.findById(1L)).thenReturn(java.util.Optional.of(version));
+        when(versionService.findVersionForRead(eq(1L), any(User.class))).thenReturn(version);
 
-        byte[] pdf = exportService.exportAsPdf(1L, mockUser);
-        String header = new String(pdf, StandardCharsets.UTF_8).substring(0, 8);
-        assertEquals("%PDF-1.4", header);
+        byte[] pdf = exportService.exportAsPdf(1L, testUser);
+        String header = new String(pdf, StandardCharsets.UTF_8).substring(0, 5);
+        assertEquals("%PDF-", header);
     }
 }

@@ -31,6 +31,16 @@ class VersionServiceTest {
 
     @InjectMocks private VersionService versionService;
 
+    private User testUser;
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        testUser = new User();
+        testUser.setId(1L);
+        testUser.setUsername("tester");
+        testUser.setRole(Role.ADMIN);
+    }
+
     @Test
     void getVersion_by_id_returns_response() {
         DocumentVersion version = new DocumentVersion();
@@ -38,7 +48,7 @@ class VersionServiceTest {
         when(versionRepository.findById(1L)).thenReturn(Optional.of(version));
         when(mapper.toVersionResponse(version)).thenReturn(resp);
 
-        VersionResponse result = versionService.getVersionById(1L);
+        VersionResponse result = versionService.getVersionById(1L, testUser);
         assertNotNull(result);
         assertEquals(resp, result);
     }
@@ -53,7 +63,7 @@ class VersionServiceTest {
         VersionResponse vr = new VersionResponse();
         when(mapper.toVersionResponse(any(DocumentVersion.class))).thenReturn(vr);
 
-        java.util.List<VersionResponse> res = versionService.getVersionsByDocument(2L);
+        java.util.List<VersionResponse> res = versionService.getVersionsByDocument(2L, testUser);
         assertEquals(1, res.size());
         assertEquals(vr, res.get(0));
     }
