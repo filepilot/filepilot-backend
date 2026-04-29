@@ -13,8 +13,10 @@ import java.util.*;
 @RequiredArgsConstructor
 public class DiffService {
 
-    // LCS is O(m*n) memory and CPU. Cap each side so a 100k-line paste can't OOM the server.
-    static final int MAX_DIFF_LINES = 5000;
+    // LCS is O(m*n) memory and CPU. Cap both per-side and product so a worst-case
+    // 5000x5000 diff can't allocate a ~100MB int[][] and pin a request thread.
+    static final int MAX_DIFF_LINES = 2000;
+    static final int MAX_DIFF_CELLS = 2_000_000;
 
     private final VersionService versionService;
 
@@ -34,6 +36,10 @@ public class DiffService {
         if (lines1.length > MAX_DIFF_LINES || lines2.length > MAX_DIFF_LINES) {
             throw new InvalidOperationException(
                     "Versions too large to diff (limit " + MAX_DIFF_LINES + " lines per side)");
+        }
+        if ((long) lines1.length * lines2.length > MAX_DIFF_CELLS) {
+            throw new InvalidOperationException(
+                    "Versions too large to diff (combined size exceeds " + MAX_DIFF_CELLS + " cells)");
         }
 
         List<DiffResponse.DiffLine> diffLines = computeLcsDiff(lines1, lines2);

@@ -103,12 +103,21 @@ public class VersionController {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().build();
         }
+        if (file.getSize() > CreateVersionRequest.MAX_CONTENT_BYTES) {
+            return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).build();
+        }
+
         String originalFilename = file.getOriginalFilename();
-        if (originalFilename != null && !originalFilename.toLowerCase().endsWith(".txt")) {
+        String safeFilename = sanitizeFilename(originalFilename);
+        if (safeFilename == null || !safeFilename.toLowerCase().endsWith(".txt")) {
             return ResponseEntity.badRequest().build();
         }
+
         String content = new String(file.getBytes(), StandardCharsets.UTF_8);
-        String versionName = (name != null && !name.isBlank()) ? name : originalFilename;
+        String versionName = (name != null && !name.isBlank()) ? name : safeFilename;
+        if (versionName.length() > CreateVersionRequest.MAX_NAME_LENGTH) {
+            versionName = versionName.substring(0, CreateVersionRequest.MAX_NAME_LENGTH);
+        }
 
         CreateVersionRequest request = new CreateVersionRequest();
         request.setContent(content);
@@ -117,5 +126,21 @@ public class VersionController {
         User user = securityUtil.getCurrentUser();
         VersionResponse response = versionService.createVersion(documentId, request, user);
         return new ResponseEntity<>(response, HttpStatus.CREATED);
+    }
+
+    private static String sanitizeFilename(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        // Strip any path components a client may have injected (foo/../bar.txt, C:\evil.txt).
+        String base = raw.replace('\\', '/');
+        int slash = base.lastIndexOf('/');
+        if (slash >= 0) {
+            base = base.substring(slash + 1);
+        }
+        if (base.isBlank() || base.equals(".") || base.equals("..")) {
+            return null;
+        }
+        return base;
     }
 }
