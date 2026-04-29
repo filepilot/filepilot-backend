@@ -2,6 +2,7 @@ package com.filepilot.vcs.service;
 
 import com.filepilot.vcs.model.Document;
 import com.filepilot.vcs.model.DocumentVersion;
+import com.filepilot.vcs.model.User;
 import com.filepilot.vcs.repository.DocumentVersionRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,6 +21,7 @@ import static org.mockito.Mockito.when;
 class ExportServiceTest {
 
     @Mock private DocumentVersionRepository versionRepository;
+    @Mock private User mockUser;
 
     @InjectMocks private ExportService exportService;
 
@@ -45,7 +47,7 @@ class ExportServiceTest {
         }
         when(versionRepository.findById(1L)).thenReturn(java.util.Optional.of(version));
 
-        byte[] txt = exportService.exportAsTxt(1L);
+        byte[] txt = exportService.exportAsTxt(1L, mockUser);
         String content = new String(txt, StandardCharsets.UTF_8);
         assertTrue(content.length() > 0);
     }
@@ -69,7 +71,7 @@ class ExportServiceTest {
         }
         when(versionRepository.findById(1L)).thenReturn(java.util.Optional.of(version));
 
-        byte[] pdf = exportService.exportAsPdf(1L);
+        byte[] pdf = exportService.exportAsPdf(1L, mockUser);
         String header = new String(pdf, StandardCharsets.UTF_8).substring(0, 8);
         assertEquals("%PDF-1.4", header);
     }
