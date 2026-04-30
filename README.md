@@ -4,7 +4,7 @@ REST API for the FilePilot document version control system. Built with Spring Bo
 
 ## Tech Stack
 
-- **Java 17**
+- **Java 21**
 - **Spring Boot 3.2.5** (Web, Data JPA, Security)
 - **PostgreSQL 16**
 - **Maven**
